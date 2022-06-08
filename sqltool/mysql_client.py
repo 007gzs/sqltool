@@ -6,7 +6,6 @@ import time
 
 from .mysql_pool import MysqlPool
 
-
 logger = logging.getLogger('mysql_client')
 
 
