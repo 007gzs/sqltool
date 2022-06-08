@@ -1,6 +1,5 @@
 # encoding: utf-8
 import logging
-import time
 
 import pymysql
 
@@ -9,57 +8,8 @@ if pymysql.version_info >= (1, ):
 else:
     from pymysql import escape_string
 
-from .mysql_pool import MysqlPool
 
 logger = logging.getLogger('sql_gen')
-
-
-class DbBase:
-    def __init__(self, **config):
-        self.pool = MysqlPool(**config)
-        self.db = config['db']
-
-    def executemany(self, sqls):
-        ret = None
-        try:
-            start = time.time()
-            with self.pool.get_connection().cursor() as cursor:
-                ret = cursor.executemany(sqls)
-            logger.info("sql query finish %fs: %s", time.time() - start, sqls)
-        except Exception:
-            logger.error("sql query error: %s", sqls, exc_info=True)
-        return ret
-
-    def query(self, sql):
-        ret = None
-        try:
-            start = time.time()
-            with self.pool.get_connection().cursor() as cursor:
-                cursor.execute(sql)
-                ret = cursor.fetchall()
-            logger.info("sql query finish %fs: %s", time.time() - start, sql)
-        except Exception:
-            logger.error("sql query error: %s", sql, exc_info=True)
-        return ret
-
-    def last_insert_id(self, table_name):
-        sql = """
-SELECT
-AUTO_INCREMENT as id
-FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_SCHEMA = '%s'
-AND TABLE_NAME = '%s'
-        """ % (self.db, table_name)
-        ret = None
-        try:
-            start = time.time()
-            with self.pool.get_connection().cursor() as cursor:
-                cursor.execute(sql)
-                ret = cursor.fetchone()['id']
-            logger.info("sql query finish %fs: %s", time.time() - start, sql)
-        except Exception:
-            logger.error("sql query error: %s", sql, exc_info=True)
-        return ret
 
 
 class GenSqlManager:
