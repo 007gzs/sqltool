@@ -22,8 +22,8 @@ class MysqlConnectWrapper(pymysql.connections.Connection):
     def release(self):
         self.pool.release(self)
 
-    def cursor(self, cursor=None):
-        cursor = super(MysqlConnectWrapper, self).cursor(cursor)
+    def cursor(self, cursor_class=None):
+        cursor = super(MysqlConnectWrapper, self).cursor(cursor_class)
         close = cursor.close
 
         def __close(*args, **kwargs):
@@ -51,7 +51,8 @@ class MysqlPool(object):
         self.connection_class = connection_class
         self.connection_kwargs = connection_kwargs
         self.max_connections = max_connections
-        self.connection_kwargs['cursorclass'] = DictCursor
+        self.connection_kwargs.setdefault('cursorclass', DictCursor)
+        self.autocommit = self.connection_kwargs.setdefault('autocommit', True)
         if issubclass(self.connection_class, MysqlConnectWrapper):
             self.connection_kwargs['pool'] = self
 
