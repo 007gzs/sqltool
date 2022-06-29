@@ -1,19 +1,157 @@
 # encoding: utf-8
 from __future__ import absolute_import, unicode_literals
 
+import enum
 import logging
 import time
 
 from pymysql.cursors import DictCursor
 
 from .mysql_pool import MysqlPool
+from .sql_gen import GenSqlManager
 
 logger = logging.getLogger('mysql_client')
+
+
+class WhereFlag(enum.Enum):
+    NE = "!="
+    EQ = "="
+    IN = "IN"
+    GT = ">"
+    LT = "<"
+    GTE = ">="
+    LTE = "<="
+    IS = "IS"
+    LIKE = "LIKE"
 
 
 class MySqlClient:
     def __init__(self, **config):
         self.pool = MysqlPool(**config)
+
+    @classmethod
+    def gen_insert_sql_args(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
+        sql_header = GenSqlManager.gen_insert_head(table_name, field_list, schema_name=schema_name)
+        sql = f"{sql_header} ({','.join(['%s'] * len(field_list))})"
+        args = []
+        if field_default is None:
+            field_default = {}
+        for item in items:
+            args.append([
+                GenSqlManager.get_item_value(item, field, field_default, escape=False)
+                for field in field_list
+            ])
+        return sql, args
+
+    @classmethod
+    def gen_insert_sql(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
+        return GenSqlManager.gen_items_sql(
+            items,
+            table_name=table_name,
+            field_list=field_list,
+            field_default=field_default,
+            schema_name=schema_name
+        )
+
+    @classmethod
+    def gen_where_item(cls, k, v, flag=None):
+        if flag is None:
+            if v is None:
+                flag = WhereFlag.IS
+            elif isinstance(v, (tuple, list)):
+                flag = WhereFlag.IN
+            else:
+                flag = WhereFlag.EQ
+
+        flag = WhereFlag(flag)
+        if isinstance(v, (tuple, list)):
+            v = ",".join(map(GenSqlManager.escape_string, v))
+        return f"{k} {flag} {v}"
+
+    @classmethod
+    def gen_wheres_sql(cls, wheres):
+        if isinstance(wheres, dict):
+            wheres = wheres.items()
+        assert isinstance(wheres, list)
+        where_list = []
+        for where in wheres:
+            assert len(where) in (2, 3)
+            if len(where) == 2:
+                k, v = where
+                where_list.append(cls.gen_where_item(k, v))
+            else:
+                k, flag, v = where
+                where_list.append(cls.gen_where_item(k, v, flag))
+        return " AND ".join(where_list)
+
+    @classmethod
+    def gen_select_sql(cls, *, table_name, columns_str='*', schema_name=None, wheres=None, limit=None):
+        sql = f"SELECT {columns_str} FROM {GenSqlManager.get_real_table_name(table_name, schema_name)}"
+        if wheres:
+            sql += " WHERE " + cls.gen_wheres_sql(wheres)
+        if limit is not None:
+            if isinstance(limit, (list, tuple)):
+                assert len(limit) == 2
+                start, size = limit
+                limit_str = f"{start}, {size}"
+            else:
+                assert isinstance(limit, int)
+                limit_str = str(limit)
+            sql += f" LIMIT {limit_str}"
+        return sql
+
+    @classmethod
+    def gen_delete_sql(cls, *, table_name, schema_name=None, wheres=None):
+        sql = f"DELETE FROM {GenSqlManager.get_real_table_name(table_name, schema_name)}"
+        assert wheres
+        sql += " WHERE " + cls.gen_wheres_sql(wheres)
+        return sql
+
+    @classmethod
+    def gen_update_sql(cls, *, table_name, update_columns, wheres=None, schema_name=None):
+        assert update_columns
+        sql = f"UPDATE {GenSqlManager.get_real_table_name(table_name, schema_name)} SET"
+        for key, value in update_columns:
+            sql += f" `{key}`={GenSqlManager.escape_string(value)}"
+        if wheres:
+            sql += " WHERE " + cls.gen_wheres_sql(wheres)
+        return sql
+
+    def insert(self, items, *, table_name, field_list, field_default=None, schema_name=None, fail_raise=False):
+        sql, args = self.gen_insert_sql_args(
+            items,
+            table_name=table_name,
+            field_list=field_list,
+            field_default=field_default,
+            schema_name=schema_name
+        )
+        return self.executemany(sql, args, fail_raise=fail_raise)
+
+    def delete(self, *, table_name, schema_name=None, wheres=None, fail_raise=False):
+        sql = self.gen_delete_sql(table_name=table_name, schema_name=schema_name, wheres=wheres)
+        return self.execute(sql, fail_raise=fail_raise)
+
+    def update(self, *, table_name, update_columns, wheres=None, schema_name=None, fail_raise=False):
+        sql = self.gen_update_sql(
+            table_name=table_name, update_columns=update_columns, schema_name=schema_name, wheres=wheres
+        )
+        return self.execute(sql, fail_raise=fail_raise)
+
+    def select(
+        self,
+        *,
+        table_name,
+        columns_str='*',
+        schema_name=None,
+        wheres=None,
+        limit=None,
+        fail_raise=False,
+        cursor_class=None
+    ):
+        sql = self.gen_select_sql(
+            table_name=table_name, columns_str=columns_str, schema_name=schema_name, wheres=wheres, limit=limit
+        )
+        return self.execute(sql, fail_raise=fail_raise, cursor_class=cursor_class)
 
     def executemany(self, sql, args, fail_raise=False, cursor_class=None):
         return self._execute(

@@ -15,9 +15,13 @@ logger = logging.getLogger('sql_gen')
 class GenSqlManager:
 
     @classmethod
-    def gen_insert_head(cls, table_name, field_list):
-        return "INSERT INTO `%s` (%s) VALUES \n" % (
-            table_name, ",".join(["`%s`" % field for field in field_list])
+    def get_real_table_name(cls, table_name, schema_name=None):
+        return f'`{schema_name}`.`{table_name}`' if schema_name else f'`{table_name}`'
+
+    @classmethod
+    def gen_insert_head(cls, table_name, field_list, schema_name=None):
+        return "INSERT INTO %s (%s) VALUES \n" % (
+            cls.get_real_table_name(table_name, schema_name), ",".join(["`%s`" % field for field in field_list])
         )
 
     @classmethod
@@ -44,12 +48,12 @@ class GenSqlManager:
         return data
 
     @classmethod
-    def gen_items_sql(cls, items, *, table_name, field_list, field_default, max_sql_size):
-        sql_head = cls.gen_insert_head(table_name, field_list)
+    def gen_items_sql(cls, items, *, table_name, field_list, field_default, max_sql_size=None, schema_name=None):
+        sql_head = cls.gen_insert_head(table_name, field_list, schema_name=schema_name)
         sql = ""
         for item in items:
             add_sql = GenSqlManager.gen_item_sql(item, field_list, field_default)
-            if len(sql) + len(add_sql) > max_sql_size:
+            if max_sql_size is not None and len(sql) + len(add_sql) > max_sql_size:
                 yield sql
                 sql = ""
             if sql:
@@ -58,10 +62,14 @@ class GenSqlManager:
                 sql = sql_head
             sql += add_sql
         if sql:
-            yield sql
+            if max_sql_size is not None:
+                yield sql
+            else:
+                return sql
 
 
 class GenSqlBase(GenSqlManager):
+    SCHEMA_NAME = None
     TABLE_NAME = None
     FIELD_LIST = ()
     FIELD_DEFAULT = {}
@@ -79,7 +87,8 @@ class GenSqlBase(GenSqlManager):
             table_name=self.TABLE_NAME,
             field_list=self.FIELD_LIST,
             field_default=self.FIELD_DEFAULT,
-            max_sql_size=max_sql_size
+            max_sql_size=max_sql_size,
+            schema_name=self.SCHEMA_NAME
         )
 
 
