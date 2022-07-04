@@ -110,6 +110,8 @@ class MySqlClient:
     @classmethod
     def gen_update_sql(cls, *, table_name, update_columns, wheres=None, schema_name=None):
         assert update_columns
+        if isinstance(update_columns, dict):
+            update_columns = update_columns.items()
         sql = f"UPDATE {GenSqlManager.get_real_table_name(table_name, schema_name)} SET"
         for key, value in update_columns:
             sql += f" `{key}`={GenSqlManager.escape_string(value)}"
