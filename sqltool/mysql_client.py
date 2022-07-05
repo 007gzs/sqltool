@@ -151,12 +151,16 @@ class MySqlClient:
         wheres=None,
         limit=None,
         fail_raise=False,
-        cursor_class=None
+        cursor_class=None,
+        many=True
     ):
         sql = self.gen_select_sql(
             table_name=table_name, columns_str=columns_str, schema_name=schema_name, wheres=wheres, limit=limit
         )
-        return self.execute(sql, fail_raise=fail_raise, cursor_class=cursor_class)
+        if many:
+            return self.query(sql, fail_raise=fail_raise, cursor_class=cursor_class)
+        else:
+            return self.get_one(sql, fail_raise=fail_raise, cursor_class=cursor_class)
 
     def executemany(self, sql, args, fail_raise=False, cursor_class=None):
         return self._execute(
