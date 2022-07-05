@@ -71,8 +71,8 @@ class MySqlClient:
     @classmethod
     def gen_wheres_sql(cls, wheres):
         if isinstance(wheres, dict):
-            wheres = wheres.items()
-        assert isinstance(wheres, list)
+            wheres = list(wheres.items())
+        assert isinstance(wheres, (list, tuple))
         where_list = []
         for where in wheres:
             assert len(where) in (2, 3)
@@ -111,7 +111,8 @@ class MySqlClient:
     def gen_update_sql(cls, *, table_name, update_columns, wheres=None, schema_name=None):
         assert update_columns
         if isinstance(update_columns, dict):
-            update_columns = update_columns.items()
+            update_columns = list(update_columns.items())
+        assert isinstance(update_columns, (list, tuple))
         sql = f"UPDATE {GenSqlManager.get_real_table_name(table_name, schema_name)} SET"
         for key, value in update_columns:
             sql += f" `{key}`={GenSqlManager.escape_string(value)}"
