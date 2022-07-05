@@ -45,13 +45,13 @@ class MySqlClient:
 
     @classmethod
     def gen_insert_sql(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
-        return GenSqlManager.gen_items_sql(
+        return next(GenSqlManager.gen_items_sql(
             items,
             table_name=table_name,
             field_list=field_list,
             field_default=field_default,
             schema_name=schema_name
-        )
+        ))
 
     @classmethod
     def gen_where_item(cls, k, v, flag=None):
@@ -65,8 +65,10 @@ class MySqlClient:
 
         flag = WhereFlag(flag)
         if isinstance(v, (tuple, list)):
-            v = ",".join(map(GenSqlManager.escape_string, v))
-        return f"{k} {flag} {v}"
+            v = f'({",".join(map(GenSqlManager.escape_string, v))})'
+        else:
+            v = GenSqlManager.escape_string(v)
+        return f"{k} {flag.value} {v}"
 
     @classmethod
     def gen_wheres_sql(cls, wheres):

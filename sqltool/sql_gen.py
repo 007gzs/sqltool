@@ -62,10 +62,7 @@ class GenSqlManager:
                 sql = sql_head
             sql += add_sql
         if sql:
-            if max_sql_size is not None:
-                yield sql
-            else:
-                return sql
+            yield sql
 
 
 class GenSqlBase(GenSqlManager):
