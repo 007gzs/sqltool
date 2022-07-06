@@ -118,8 +118,7 @@ class MySqlClient:
             update_columns = list(update_columns.items())
         assert isinstance(update_columns, (list, tuple))
         sql = f"UPDATE {GenSqlManager.get_real_table_name(table_name, schema_name)} SET"
-        for key, value in update_columns:
-            sql += f" `{key}`={GenSqlManager.escape_string(value)}"
+        sql += ",".join([f"`{key}`={GenSqlManager.escape_string(value)}" for key, value in update_columns])
         if wheres:
             sql += " WHERE " + cls.gen_wheres_sql(wheres)
         return sql
