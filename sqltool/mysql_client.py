@@ -45,6 +45,8 @@ class MySqlClient:
 
     @classmethod
     def gen_insert_sql(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
+        if field_default is None:
+            field_default = {}
         return next(GenSqlManager.gen_items_sql(
             items,
             table_name=table_name,
