@@ -19,9 +19,11 @@ class GenSqlManager:
         return f'`{schema_name}`.`{table_name}`' if schema_name else f'`{table_name}`'
 
     @classmethod
-    def gen_insert_head(cls, table_name, field_list, schema_name=None):
-        return "INSERT INTO %s (%s) VALUES \n" % (
-            cls.get_real_table_name(table_name, schema_name), ",".join(["`%s`" % field for field in field_list])
+    def gen_insert_head(cls, table_name, field_list, schema_name=None, insert_type='INSERT INTO'):
+        return "{%s} %s (%s) VALUES \n" % (
+            insert_type,
+            cls.get_real_table_name(table_name, schema_name),
+            ",".join(["`%s`" % field for field in field_list])
         )
 
     @classmethod
@@ -48,8 +50,13 @@ class GenSqlManager:
         return data
 
     @classmethod
-    def gen_items_sql(cls, items, *, table_name, field_list, field_default, max_sql_size=None, schema_name=None):
-        sql_head = cls.gen_insert_head(table_name, field_list, schema_name=schema_name)
+    def gen_items_sql(
+        cls,
+        items,
+        *,
+        table_name, field_list, field_default, max_sql_size=None, schema_name=None, insert_type='INSERT INTO'
+    ):
+        sql_head = cls.gen_insert_head(table_name, field_list, schema_name=schema_name, insert_type=insert_type)
         sql = ""
         for item in items:
             add_sql = GenSqlManager.gen_item_sql(item, field_list, field_default)
@@ -78,14 +85,15 @@ class GenSqlBase(GenSqlManager):
         self.items.append(item)
         return item
 
-    def gen_sql(self, max_sql_size=1024 * 1024):
+    def gen_sql(self, max_sql_size=1024 * 1024, insert_type='INSERT INTO'):
         return self.gen_items_sql(
             self.items,
             table_name=self.TABLE_NAME,
             field_list=self.FIELD_LIST,
             field_default=self.FIELD_DEFAULT,
             max_sql_size=max_sql_size,
-            schema_name=self.SCHEMA_NAME
+            schema_name=self.SCHEMA_NAME,
+            insert_type=insert_type
         )
 
 
