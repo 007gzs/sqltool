@@ -20,11 +20,17 @@ class GenSqlManager:
 
     @classmethod
     def gen_insert_head(cls, table_name, field_list, schema_name=None, insert_type='INSERT INTO'):
-        return "{%s} %s (%s) VALUES \n" % (
+        return "%s %s (%s) VALUES \n" % (
             insert_type,
             cls.get_real_table_name(table_name, schema_name),
             ",".join(["`%s`" % field for field in field_list])
         )
+
+    # @classmethod
+    # def gen_insert_tail(cls, table_name, field_list, schema_name=None):
+    #     return " AS new()\n" % (
+    #         cls.get_real_table_name(table_name, schema_name), ",".join(["`%s`" % field for field in field_list])
+    #     )
 
     @classmethod
     def escape_string(cls, value):
