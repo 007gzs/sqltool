@@ -21,9 +21,9 @@ def test_gen_sql():
     p = parent.add_item(name="p2")
     child.add_item(pid=p['id'], name='c4')
     child.add_item(pid=p['id'], name='c5')
-    assert list(parent.gen_sql()) == ["INSERT INTO `test_parent` (`id`,`name`) VALUES \n(1,'p1'),\n(2,'p2')"]
+    assert list(parent.gen_sql()) == ["INSERT INTO `test_parent` (`id`,`name`) VALUES \n(1,'p1'),\n(2,'p2') "]
     assert list(child.gen_sql()) == [
-        "INSERT INTO `test_child` (`id`,`pid`,`name`) VALUES \n(5,1,'c1'),\n(6,1,'c2'),\n(7,2,'c4'),\n(8,2,'c5')"
+        "INSERT INTO `test_child` (`id`,`pid`,`name`) VALUES \n(5,1,'c1'),\n(6,1,'c2'),\n(7,2,'c4'),\n(8,2,'c5') "
     ]
 
 
