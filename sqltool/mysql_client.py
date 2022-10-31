@@ -30,9 +30,25 @@ class MySqlClient:
         self.pool = MysqlPool(**config)
 
     @classmethod
-    def gen_insert_sql_args(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
-        sql_header = GenSqlManager.gen_insert_head(table_name, field_list, schema_name=schema_name)
-        sql = f"{sql_header} ({','.join(['%s'] * len(field_list))})"
+    def gen_insert_sql_args(
+        cls,
+        items,
+        *,
+        table_name,
+        field_list,
+        field_default=None,
+        schema_name=None,
+        insert_type='INSERT INTO',
+        on_duplicate_key_update_fields=()
+    ):
+        sql_header, sql_tail = GenSqlManager.gen_insert_head_tail(
+            table_name,
+            field_list,
+            schema_name=schema_name,
+            insert_type=insert_type,
+            on_duplicate_key_update_fields=on_duplicate_key_update_fields
+         )
+        sql = f"{sql_header} ({','.join(['%s'] * len(field_list))}) {sql_tail}"
         args = []
         if field_default is None:
             field_default = {}
@@ -44,7 +60,16 @@ class MySqlClient:
         return sql, args
 
     @classmethod
-    def gen_insert_sql(cls, items, *, table_name, field_list, field_default=None, schema_name=None):
+    def gen_insert_sql(
+        cls,
+        items,
+        *,
+        table_name,
+        field_list,
+        field_default=None,
+        schema_name=None,
+        on_duplicate_key_update_fields=()
+    ):
         if field_default is None:
             field_default = {}
         return next(GenSqlManager.gen_items_sql(
@@ -52,7 +77,8 @@ class MySqlClient:
             table_name=table_name,
             field_list=field_list,
             field_default=field_default,
-            schema_name=schema_name
+            schema_name=schema_name,
+            on_duplicate_key_update_fields=on_duplicate_key_update_fields
         ))
 
     @classmethod
@@ -123,15 +149,33 @@ class MySqlClient:
             sql += " WHERE " + cls.gen_wheres_sql(wheres)
         return sql
 
-    def insert(self, items, *, table_name, field_list, field_default=None, schema_name=None, fail_raise=False):
-        sql, args = self.gen_insert_sql_args(
-            items,
-            table_name=table_name,
-            field_list=field_list,
-            field_default=field_default,
-            schema_name=schema_name
-        )
-        return self.executemany(sql, args, fail_raise=fail_raise)
+    def insert(
+        self,
+        items,
+        *,
+        table_name,
+        field_list,
+        field_default=None,
+        schema_name=None,
+        fail_raise=False,
+        insert_type='INSERT INTO',
+        on_duplicate_key_update_fields=(),
+        use_args=True
+    ):
+        kwargs = {
+            "table_name": table_name,
+            "field_list": field_list,
+            "field_default": field_default,
+            "schema_name": schema_name,
+            "insert_type": insert_type,
+            "on_duplicate_key_update_fields": on_duplicate_key_update_fields
+        }
+        if use_args:
+            sql, args = self.gen_insert_sql_args(items, **kwargs)
+            return self.executemany(sql, args, fail_raise=fail_raise)
+        else:
+            sql = self.gen_insert_sql(items, **kwargs)
+            return self.execute(sql, fail_raise=fail_raise)
 
     def delete(self, *, table_name, schema_name=None, wheres=None, fail_raise=False):
         sql = self.gen_delete_sql(table_name=table_name, schema_name=schema_name, wheres=wheres)

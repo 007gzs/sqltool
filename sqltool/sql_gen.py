@@ -26,11 +26,37 @@ class GenSqlManager:
             ",".join(["`%s`" % field for field in field_list])
         )
 
-    # @classmethod
-    # def gen_insert_tail(cls, table_name, field_list, schema_name=None):
-    #     return " AS new()\n" % (
-    #         cls.get_real_table_name(table_name, schema_name), ",".join(["`%s`" % field for field in field_list])
-    #     )
+    @classmethod
+    def gen_insert_head_tail(
+        cls, table_name, field_list, schema_name=None, insert_type='INSERT INTO', on_duplicate_key_update_fields=()
+    ):
+        sql_tail_list = []
+        new_data_flag = '__new_data__'
+        if on_duplicate_key_update_fields:
+            for on_duplicate_key_update_field in on_duplicate_key_update_fields:
+                if not isinstance(on_duplicate_key_update_field, (list, tuple)):
+                    from_field = on_duplicate_key_update_field
+                    to_field = from_field
+                else:
+                    assert len(on_duplicate_key_update_field) == 2
+                    from_field, to_field = on_duplicate_key_update_field
+                if from_field in field_list:
+                    from_field = f"`{from_field}`"
+                if not isinstance(to_field, (list, tuple)):
+                    to_field = (to_field, )
+                to_fields = list()
+                for field in to_field:
+                    if field in field_list:
+                        field = f'{new_data_flag}.`{field}`'
+                    to_fields.append(field)
+                sql_tail_list.append(f"{from_field}={' '.join(to_fields)}")
+        sql_tail = ''
+        if sql_tail_list:
+            sql_tail = f'\nAS {new_data_flag} ON DUPLICATE KEY UPDATE {",".join(sql_tail_list)}'
+        sql_head = cls.gen_insert_head(
+            table_name=table_name, field_list=field_list, schema_name=schema_name, insert_type=insert_type
+        )
+        return sql_head, sql_tail
 
     @classmethod
     def escape_string(cls, value):
@@ -60,13 +86,26 @@ class GenSqlManager:
         cls,
         items,
         *,
-        table_name, field_list, field_default, max_sql_size=None, schema_name=None, insert_type='INSERT INTO'
+        table_name,
+        field_list,
+        field_default,
+        max_sql_size=None,
+        schema_name=None,
+        insert_type='INSERT INTO',
+        on_duplicate_key_update_fields=()
     ):
-        sql_head = cls.gen_insert_head(table_name, field_list, schema_name=schema_name, insert_type=insert_type)
+        sql_head, sql_tail = cls.gen_insert_head_tail(
+            table_name,
+            field_list,
+            schema_name=schema_name,
+            insert_type=insert_type,
+            on_duplicate_key_update_fields=on_duplicate_key_update_fields
+        )
         sql = ""
         for item in items:
             add_sql = GenSqlManager.gen_item_sql(item, field_list, field_default)
             if max_sql_size is not None and len(sql) + len(add_sql) > max_sql_size:
+                sql += " " + sql_tail
                 yield sql
                 sql = ""
             if sql:
@@ -75,6 +114,7 @@ class GenSqlManager:
                 sql = sql_head
             sql += add_sql
         if sql:
+            sql += " " + sql_tail
             yield sql
 
 
@@ -91,7 +131,7 @@ class GenSqlBase(GenSqlManager):
         self.items.append(item)
         return item
 
-    def gen_sql(self, max_sql_size=1024 * 1024, insert_type='INSERT INTO'):
+    def gen_sql(self, max_sql_size=1024 * 1024, insert_type='INSERT INTO', on_duplicate_key_update_fields=()):
         return self.gen_items_sql(
             self.items,
             table_name=self.TABLE_NAME,
@@ -99,7 +139,8 @@ class GenSqlBase(GenSqlManager):
             field_default=self.FIELD_DEFAULT,
             max_sql_size=max_sql_size,
             schema_name=self.SCHEMA_NAME,
-            insert_type=insert_type
+            insert_type=insert_type,
+            on_duplicate_key_update_fields=on_duplicate_key_update_fields
         )
 
 
