@@ -1,5 +1,6 @@
 # encoding: utf-8
 import logging
+import queue
 
 import pymysql
 
@@ -123,17 +124,30 @@ class GenSqlBase(GenSqlManager):
     TABLE_NAME = None
     FIELD_LIST = ()
     FIELD_DEFAULT = {}
+    MT_MPSC = False
 
-    def __init__(self, *args, **kwargs):
-        self.items = list()
+    def __init__(self):
+        self.items = queue.Queue()
 
     def add_item(self, **item):
-        self.items.append(item)
+        self.items.put_nowait(item)
         return item
 
+    def finish(self):
+        self.items.put_nowait(None)
+
+    def items_iter(self):
+        while True:
+            item = self.items.get()
+            if item is None:
+                break
+            yield item
+
     def gen_sql(self, max_sql_size=1024 * 1024, insert_type='INSERT INTO', on_duplicate_key_update_fields=()):
+        if not self.MT_MPSC:
+            self.finish()
         return self.gen_items_sql(
-            self.items,
+            self.items_iter(),
             table_name=self.TABLE_NAME,
             field_list=self.FIELD_LIST,
             field_default=self.FIELD_DEFAULT,
